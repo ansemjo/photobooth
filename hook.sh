@@ -33,8 +33,8 @@ case "$ACTION" in
 			--fullscreen \
 			--zoom fill \
 			--randomize \
-			--reload 1 \
-			--slideshow-delay 3 \
+			--reload 2 \
+			--slideshow-delay $SLIDESHOW_DELAY \
 			"$DIRECTORY" &
 		
 		# save pid of background slideshow
@@ -55,9 +55,9 @@ case "$ACTION" in
 			--fullscreen \
 			--zoom fill \
 			--cycle-once \
-			--slideshow-delay 6 \
+			--slideshow-delay $SNAPSHOT_DELAY.5 \
 			"$ARGUMENT" &
-		sleep 5.8 && kill -USR1 "$(cat photobooth.pid)" &
+		sleep $SNAPSHOT_DELAY && kill -USR1 "$(cat photobooth.pid)" &
 
 	;;
 
