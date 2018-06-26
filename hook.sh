@@ -13,9 +13,13 @@ case "$ACTION" in
 		# log directory that is used
 		log "using $DIRECTORY"
 
-		# copy the frame that is displayed first
-		log "copy startscreen"
-		cp -f "$STARTSCREEN" "$DIRECTORY/$STARTSCREEN"
+		# count files in directory
+		FILES=$(ls -la "$DIRECTORY/" | wc -l)
+
+		# copy first frame if directory is empty
+		[[ $FILES -eq 0 ]] \
+			&& log "copy startscreen" \
+			&& cp -f "$STARTSCREEN" "$DIRECTORY/"
 
 	;;
 
@@ -31,14 +35,18 @@ case "$ACTION" in
 			--reload 1 \
 			--slideshow-delay 3 \
 			"$DIRECTORY" &
+		
+		# save pid of background slideshow
+		PID=$!
+		log "background slideshow PID: $PID"
+		printf '%s' "$PID" > photobooth.pid
 
 	;;
 
 	download)
 
 		rm -f "$DIRECTORY/$STARTSCREEN"
-		killall -USR1 feh
-
+		
 		# display new photo on top
 		log "display $ARGUMENT"
 		feh \
@@ -48,13 +56,17 @@ case "$ACTION" in
 			--cycle-once \
 			--slideshow-delay 6 \
 			"$ARGUMENT" &
+		sleep 5.8 && kill -USR1 "$(cat photobooth.pid)" &
 
 	;;
 
 	stop)
 
 		log "killing all remaining feh processes"
-		killall feh
+		killall feh &
+
+		log "remove pid file"
+		rm photobooth.pid
 
 	;;
 
