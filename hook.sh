@@ -15,7 +15,7 @@ case "$ACTION" in
 
 		# copy the frame that is displayed first
 		log "copy startscreen"
-		cp -f "$STARTSCREEN" "$DIRECTORY/"
+		cp -f "$STARTSCREEN" "$DIRECTORY/$STARTSCREEN"
 
 	;;
 
@@ -26,24 +26,27 @@ case "$ACTION" in
 		feh \
 			--hide-pointer \
 			--fullscreen \
-			--auto-zoom \
+			--zoom fill \
 			--randomize \
 			--reload 1 \
-			--slideshow-delay 1 \
+			--slideshow-delay 3 \
 			"$DIRECTORY" &
 
 	;;
 
 	download)
 
+		rm -f "$DIRECTORY/$STARTSCREEN"
+		killall -USR1 feh
+
 		# display new photo on top
 		log "display $ARGUMENT"
 		feh \
 			--hide-pointer \
 			--fullscreen \
-			--auto-zoom \
+			--zoom fill \
 			--cycle-once \
-			--slideshow-delay 3 \
+			--slideshow-delay 6 \
 			"$ARGUMENT" &
 
 	;;
