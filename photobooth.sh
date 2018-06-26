@@ -15,6 +15,6 @@ mkdir -p "$DIRECTORY"
 # Aktivierung des Tethering-Modus der Kamera und Warten auf Bilder
 gphoto2 \
   --capture-tethered \
-  --filename="$DIRECTORY/$ANLASS-%Y%m%d%n.%C" \
+  --filename="$DIRECTORY/$ANLASS-%Y%m%d-%H-%M-%S-%n.%C" \
   --force-overwrite \
   --hook-script=hook.sh

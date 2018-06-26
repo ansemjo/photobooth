@@ -26,4 +26,4 @@ feh \
   --randomize \
   --reload 5 \
   --slideshow-delay 3 \
-  "$DIRNAME/"
+  "$DIRNAME"
