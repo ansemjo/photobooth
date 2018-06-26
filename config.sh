@@ -14,5 +14,5 @@ export STARTSCREEN="start.png"
 export LOGFILE="log.txt"
 
 # override for local testing only!
-mkdir -p /tmp/photobooth/$(date --utc +%s)
-export PHOTOBOOTH=/tmp/photobooth
+#mkdir -p /tmp/photobooth/$(date --utc +%s)
+#export PHOTOBOOTH=/tmp/photobooth

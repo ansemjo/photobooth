@@ -14,12 +14,13 @@ case "$ACTION" in
 		log "using $DIRECTORY"
 
 		# count files in directory
-		FILES=$(ls -la "$DIRECTORY/" | wc -l)
+		FILES=$(ls -1 "$DIRECTORY/" | wc -l)
 
 		# copy first frame if directory is empty
 		[[ $FILES -eq 0 ]] \
 			&& log "copy startscreen" \
-			&& cp -f "$STARTSCREEN" "$DIRECTORY/"
+			&& cp -f "$STARTSCREEN" "$DIRECTORY/" \
+			|| true
 
 	;;
 
