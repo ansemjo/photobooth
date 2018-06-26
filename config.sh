@@ -2,11 +2,17 @@
 
 # we depend on dropbox to upload pictures to the cloud™ in the background
 # give the dropbox root here:
-DROPBOX=~/Dropbox
+export DROPBOX=~/Dropbox
 
 # photobooth root, where the newest directory will be used
-PHOTOBOOTH="$DROPBOX/Fotobox"
+export PHOTOBOOTH="$DROPBOX/Fotobox"
+
+# startscreen file
+export STARTSCREEN="start.png"
+
+# logging file
+export LOGFILE="log.txt"
 
 # override for local testing only!
 mkdir -p /tmp/photobooth/$(date --utc +%s)
-PHOTOBOOTH=/tmp/photobooth
+export PHOTOBOOTH=/tmp/photobooth
