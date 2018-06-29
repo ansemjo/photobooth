@@ -1,7 +1,10 @@
-.PHONY: help udev install gvfs gvfs-permanent gvfs-undo dist
+.PHONY: help udev install gvfs gvfs-permanent gvfs-undo force clean
 
 PHOTOBOOTH := photobooth.sh
 UDEV_RULE := /etc/udev/rules.d/10-photobooth.rules
+
+GITREF := $(shell git rev-parse --short HEAD)
+ARCHIVE := photobooth_$(GITREF)
 
 help:
 	@echo "run 'make install' to stop gvfs services and install udev rule"
@@ -31,5 +34,19 @@ gvfs-undo :
 	systemctl --user start gvfs-mtp-volume-monitor
 	systemctl --user start gvfs-udisks2-volume-monitor
 
-dist :
-	tar caf photobooth_$$(git rev-parse --short HEAD).tar.xz makefile photobooth.sh start.png
+dist.% : force
+	@make $(ARCHIVE).tar.$*
+
+dist.7z : force
+	@make $(ARCHIVE).7z
+
+$(ARCHIVE).tar.% : makefile photobooth.sh start.png
+	tar caf $@ $^
+
+$(ARCHIVE).7z : makefile photobooth.sh start.png
+	7za a $@ $^
+
+clean :
+	git clean -dfx
+
+force:
