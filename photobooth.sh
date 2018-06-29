@@ -16,7 +16,6 @@ export DISPLAY=:0
 
 # we depend on dropbox to upload pictures to the cloud™ in the background
 export PHOTOBOOTH=~/Dropbox/Fotobox
-export PHOTOBOOTH=/tmp/Fotobox
 
 # gphoto filename template
 export FILENAME_TEMPLATE='%Y%m%d-%H%M%S-%04n.%C'
