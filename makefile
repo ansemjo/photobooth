@@ -1,6 +1,6 @@
-.PHONY: help udev install gvfs gvfs-permanent gvfs-undo
+.PHONY: help udev install gvfs gvfs-permanent gvfs-undo dist
 
-PHOTOBOOTH := $(PWD)/photobooth.sh
+PHOTOBOOTH := photobooth.sh
 UDEV_RULE := /etc/udev/rules.d/10-photobooth.rules
 
 help:
@@ -9,7 +9,7 @@ help:
 	@echo "run 'make gvfs-undo' to reenable gvfs"
 
 udev :
-	echo 'SUBSYSTEM=="usb", DRIVERS=="usb", ACTION=="add", ATTRS{idVendor}=="04a9", RUN+="$(PHOTOBOOTH)"' | sudo tee "$(UDEV_RULE)"
+	echo 'SUBSYSTEM=="usb", DRIVERS=="usb", ACTION=="add", ATTRS{idVendor}=="04a9", RUN+="$(PWD)/$(PHOTOBOOTH)"' | sudo tee "$(UDEV_RULE)"
 
 install : udev gvfs
 
@@ -30,3 +30,6 @@ gvfs-undo :
 	systemctl --user start gvfs-gphoto2-volume-monitor
 	systemctl --user start gvfs-mtp-volume-monitor
 	systemctl --user start gvfs-udisks2-volume-monitor
+
+dist :
+	tar caf photobooth_$$(git rev-parse --short HEAD).tar.xz makefile photobooth.sh start.png
