@@ -1,4 +1,4 @@
-.PHONY: help udev install gvfs gvfs-permanent gvfs-undo force clean
+.PHONY: help udev install gvfs gvfs-permanent gvfs-undo force clean dist
 
 PHOTOBOOTH := photobooth.sh
 UDEV_RULE := /etc/udev/rules.d/10-photobooth.rules
@@ -33,6 +33,8 @@ gvfs-undo :
 	systemctl --user start gvfs-gphoto2-volume-monitor
 	systemctl --user start gvfs-mtp-volume-monitor
 	systemctl --user start gvfs-udisks2-volume-monitor
+
+dist : dist.xz
 
 dist.% : force
 	@make $(ARCHIVE).tar.$*
