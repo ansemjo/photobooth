@@ -6,7 +6,7 @@
 
   vars:
     
-    username: fotobox
+    user: fotobox
 
     getty_service: /lib/systemd/system/getty@.service
     autologin: autologin
@@ -24,11 +24,17 @@
       - xserver-xorg
       - xinit
       - xterm
-      - blackbox
-      - vim
+      - fluxbox
       - gphoto2
       - feh
       - qrencode
+
+  handlers:
+
+    - name: restart tty
+      systemd:
+        name: "{{ autologin }}@{{ tty }}"
+        state: restarted
 
   tasks:
 
@@ -40,8 +46,12 @@
         - "ansible_distribution_major_version == '9'"
 
     - name: user account created
-      debug:
-        msg: "TODO"
+      user:
+        name: "{{ user }}"
+        comment: photobooth autologin
+        shell: /bin/bash
+        state: present
+      notify: restart tty
 
     - name: getty service definition copied
       copy:
@@ -54,7 +64,7 @@
       lineinfile:
         path: "{{ autologin_service }}"
         regexp: "^ExecStart="
-        line: "ExecStart=-/sbin/agetty --autologin {{ username }} --noclear %I $TERM"
+        line: "ExecStart=-/sbin/agetty --autologin {{ user }} --noclear %I $TERM"
 
     - name: original getty disabled
       systemd:
@@ -77,6 +87,7 @@
       with_items: "{{ software }}"
       ignore_errors: yes
       register: apt
+      notify: restart tty
 
     - name: software is installed (retry with updated cache)
       apt:
@@ -86,6 +97,11 @@
         install_recommends: no
       with_items: "{{ software }}"
       when: apt is failed
+      notify: restart tty
 
     - name: configured startx default for user
-
+      copy:
+        src: conf/dot-bash_profile
+        dest: "~{{ user }}/.bash_profile"
+        owner: "{{ user }}"
+      notify: restart tty
