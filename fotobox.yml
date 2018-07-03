@@ -1,0 +1,91 @@
+#!/usr/bin/env ansible-playbook
+---
+
+- hosts: fotobox
+  user: root
+
+  vars:
+    
+    username: fotobox
+
+    getty_service: /lib/systemd/system/getty@.service
+    autologin: autologin
+    autologin_service: "/etc/systemd/system/{{ autologin }}@.service"
+    tty: tty1
+
+    software:
+      - network-manager
+      - net-tools
+      - wireless-tools
+      - wpagui
+      - curl
+      - git
+      - xserver-xorg-core
+      - xserver-xorg
+      - xinit
+      - xterm
+      - blackbox
+      - vim
+      - gphoto2
+      - feh
+      - qrencode
+
+  tasks:
+
+    - name: check for correct host os
+      assert:
+        that: "{{ item }}"
+      with_items:
+        - "ansible_distribution == 'Debian'"
+        - "ansible_distribution_major_version == '9'"
+
+    - name: user account created
+      debug:
+        msg: "TODO"
+
+    - name: getty service definition copied
+      copy:
+        force: no
+        remote_src: yes
+        src: "{{ getty_service }}"
+        dest: "{{ autologin_service }}"
+
+    - name: autologin service's execstart configured
+      lineinfile:
+        path: "{{ autologin_service }}"
+        regexp: "^ExecStart="
+        line: "ExecStart=-/sbin/agetty --autologin {{ username }} --noclear %I $TERM"
+
+    - name: original getty disabled
+      systemd:
+        name: "getty@{{ tty }}"
+        state: stopped
+        enabled: no
+
+    - name: autologin enabled
+      systemd:
+        name: "{{ autologin }}@{{ tty }}"
+        state: started
+        enabled: yes
+
+    - name: software is installed
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: no
+        install_recommends: no
+      with_items: "{{ software }}"
+      ignore_errors: yes
+      register: apt
+
+    - name: software is installed (retry with updated cache)
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+        install_recommends: no
+      with_items: "{{ software }}"
+      when: apt is failed
+
+    - name: configured startx default for user
+
