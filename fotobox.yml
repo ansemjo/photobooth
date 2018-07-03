@@ -13,13 +13,20 @@
     autologin_service: "/etc/systemd/system/{{ autologin }}@.service"
     tty: tty1
 
+    scripts_dir: "~{{ user }}/bin"
+
+    fluxbox_autostart:
+      - xterm -geometry 100x50+0+0 -hold -e bin/dropbox.sh
+
     software:
+      - ca-certificates
       - network-manager
       - net-tools
       - wireless-tools
       - wpagui
       - curl
       - git
+      - python-gpgme
       - xserver-xorg-core
       - xserver-xorg
       - xinit
@@ -28,6 +35,8 @@
       - gphoto2
       - feh
       - qrencode
+
+    dropbox: https://www.dropbox.com/download?dl=packages/ubuntu/dropbox_2015.10.28_amd64.deb
 
   handlers:
 
@@ -99,9 +108,43 @@
       when: apt is failed
       notify: restart tty
 
+    - name: dropbox installed
+      apt:
+        deb: "{{ dropbox }}"
+        state: present
+
     - name: configured startx default for user
       copy:
-        src: conf/dot-bash_profile
+        src: conf/bash_profile
         dest: "~{{ user }}/.bash_profile"
         owner: "{{ user }}"
+      notify: restart tty
+
+    - name: configured fluxbox startup scripts
+      template:
+        src: conf/fluxbox_startup.j2
+        dest: "~{{ user }}/.fluxbox/startup"
+        owner: "{{ user }}"
+        backup: yes
+      notify: restart tty
+
+    - name: scripts directory created
+      file:
+        state: directory
+        path: "{{ scripts_dir }}"
+        owner: "{{ user }}"
+      notify: restart tty
+
+    - name: copied scripts
+      copy:
+        src: "{{ item }}"
+        dest: "{{ scripts_dir }}/"
+        owner: "{{ user }}"
+        mode: 0755
+      with_fileglob:
+        - "scripts/*.sh"
+      notify: restart tty
+
+    - name: debug | always restart tty
+      command: /bin/true
       notify: restart tty
