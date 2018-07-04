@@ -16,7 +16,7 @@
     scripts_dir: "~{{ user }}/bin"
 
     fluxbox_autostart:
-      - xterm -geometry 100x50+0+0 -hold -e bin/dropbox.sh
+      - xterm -geometry 100x50+0+0 -e bin/dropbox.sh
 
     software:
       - ca-certificates
@@ -35,6 +35,7 @@
       - gphoto2
       - feh
       - qrencode
+      - libxslt1.1
 
     dropbox: https://www.dropbox.com/download?dl=packages/ubuntu/dropbox_2015.10.28_amd64.deb
 
@@ -108,10 +109,19 @@
       when: apt is failed
       notify: restart tty
 
-    - name: dropbox installed
+    - name: dropbox cli installed
       apt:
         deb: "{{ dropbox }}"
         state: present
+      when: no
+
+    - name: dropbox dist installed
+      become: yes
+      become_user: "{{ user }}"
+      become_method: su
+      shell: echo y | dropbox start -i
+      args:
+        creates: "~{{ user }}/.dropbox-dist/dropboxd"
 
     - name: configured startx default for user
       copy:
