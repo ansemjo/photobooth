@@ -1,0 +1,28 @@
+FROM alpine:latest
+
+ENV i /iso
+ENV o /out
+ENV t /temp
+ENV inj /usr/local/bin/inject.sh
+
+# install requirements
+# and create directories
+RUN apk add \
+    --no-cache \
+    -t preseed-tools \
+    libarchive-tools \
+    syslinux \
+    xorriso \
+  && mkdir -p "$i" "$o" "$t"
+
+# declare iso and out volumes and
+# copy initial preseed config
+VOLUME "$o" "$i"
+COPY preseed.cfg /preseed.cfg
+
+# copy injection script,
+# make it executable and
+# set as entrypoint
+ENTRYPOINT $inj
+COPY inject.sh $inj
+RUN chmod +x $inj
