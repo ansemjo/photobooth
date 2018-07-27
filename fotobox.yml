@@ -113,7 +113,6 @@
       apt:
         deb: "{{ dropbox }}"
         state: present
-      when: no
 
     - name: dropbox dist installed
       become: yes
@@ -129,6 +128,12 @@
         dest: "~{{ user }}/.bash_profile"
         owner: "{{ user }}"
       notify: restart tty
+
+    - name: fluxbox config directory exists
+      file:
+        state: directory
+        path: "~{{ user }}/.fluxbox"
+        owner: "{{ user }}"
 
     - name: configured fluxbox startup scripts
       template:
