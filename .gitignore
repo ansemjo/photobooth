@@ -2,3 +2,7 @@
 *.7z
 log.txt
 *.pid
+
+# ansible files
+*.retry
+inventory
