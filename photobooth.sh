@@ -157,7 +157,13 @@ case "$ACTION" in
 			"$ARGUMENT" &
 
     # direct background feh to change photo shortly before current photo closes again
-		sleep $SNAPSHOT_DELAY && kill -USR1 "$(cat photobooth.pid)" &
+		( sleep $SNAPSHOT_DELAY;
+      if ! kill -s 0 "$(cat photobooth.pid)" 2>/dev/null; then
+        log "slideshow not reunning, restarting ..."
+        ACTION=start bash "$0" &
+      else
+        kill -USR1 "$(cat photobooth.pid)"
+      fi ) &
 
 	;;
 
