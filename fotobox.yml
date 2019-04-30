@@ -16,7 +16,7 @@
     scripts_dir: "~{{ user }}/bin"
 
     fluxbox_autostart:
-      - xterm -geometry 100x50+0+0 -e bin/dropbox.sh
+      - xterm -geometry 168x55+0+0 -maximized -e bin/dropbox.sh
 
     software:
       - ca-certificates
