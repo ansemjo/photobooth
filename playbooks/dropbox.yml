@@ -1,4 +1,3 @@
-#!/usr/bin/env ansible-playbook
 ---
 
 - hosts: fotobox
@@ -90,23 +89,10 @@
 
     - name: software is installed
       apt:
-        name: "{{ item }}"
-        state: present
-        update_cache: no
-        install_recommends: no
-      with_items: "{{ software }}"
-      ignore_errors: yes
-      register: apt
-      notify: restart tty
-
-    - name: software is installed (retry with updated cache)
-      apt:
-        name: "{{ item }}"
+        name: "{{ software }}"
         state: present
         update_cache: yes
         install_recommends: no
-      with_items: "{{ software }}"
-      when: apt is failed
       notify: restart tty
 
     - name: dropbox cli installed

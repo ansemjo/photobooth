@@ -1,0 +1,12 @@
+#!/bin/bash
+# {{ ansible_managed }}
+
+# set dark background
+fbsetroot -solid grey15
+
+# autostart items
+{% for item in fluxbox_autostart %}
+{{ item }}
+{% endfor %}
+
+exec fluxbox

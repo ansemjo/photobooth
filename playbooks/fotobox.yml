@@ -1,0 +1,172 @@
+---
+
+- hosts: fotobox
+  vars:
+
+    # autologin user to start desktop and capture
+    user: fotobox
+
+    # start applications automatically
+    fluxbox_autostart:
+      #- xterm -geometry 168x55+0+0 -maximized &
+      - nm-applet &
+
+    # add entries to right-click menu on desktop
+    fluxbox_menu:
+      - { name: Terminal, cmd: xterm, img: /usr/share/pixmaps/filled-xterm_32x32.xpm }
+      - { name: File Explorer, cmd: thunar, img: /usr/share/pixmaps/Thunar/Thunar-about-logo.png }
+      - { name: Web Browser, cmd: firefox, img: /usr/share/pixmaps/debian-logo.png}
+
+    # install required software
+    software:
+      - ca-certificates
+      - network-manager
+      - network-manager-gnome
+      - net-tools
+      - wireless-tools
+      - wpagui
+      - curl
+      - xserver-xorg
+      - xinit
+      - xterm
+      - fluxbox
+      - gphoto2
+      - feh
+      - qrencode
+      - thunar
+      - firefox-esr
+
+    # disable these monitors because they interfere with our udev rule
+    gvfs_monitors:
+      - gvfs-gphoto2-volume-monitor
+      - gvfs-mtp-volume-monitor
+      - gvfs-udisks2-volume-monitor
+
+    # trigger udev rule for these vendor ids
+    camera_vendors:
+      - 04a9 #Canon
+
+  handlers:
+
+    # restart the desktop if config changes occurred
+    - name: restart tty
+      systemd:
+        name: getty@*
+        state: restarted
+
+  tasks:
+
+    - name: check for expected linux distribution
+      assert:
+        that: "{{ item }}"
+      with_items:
+        - "ansible_distribution == 'Debian'"
+        - "ansible_distribution_major_version == '9'"
+
+    - name: reduce grub timeout
+      lineinfile:
+        path: /etc/default/grub
+        regexp: '^GRUB_TIMEOUT='
+        line: GRUB_TIMEOUT=1
+      register: grub_defaults
+
+    - name: update grub configuration
+      command: update-grub
+      when: grub_defaults is changed
+
+    - name: user account created
+      user:
+        name: "{{ user }}"
+        comment: photobooth autologin
+        shell: /bin/bash
+        state: present
+      notify: restart tty
+
+    - name: getty override directory exists
+      file:
+        state: directory
+        path: /etc/systemd/system/getty@.service.d
+
+    - name: getty autologin override in place
+      copy:
+        dest: /etc/systemd/system/getty@.service.d/autologin.conf
+        content: |
+          [Service]
+          ExecStart=
+          ExecStart=-/sbin/agetty --autologin {{ user }} --noclear %I $TERM
+      notify: restart tty
+
+    - name: required software is installed
+      apt:
+        name: "{{ software }}"
+        state: present
+        update_cache: no
+        install_recommends: no
+      ignore_errors: yes
+      register: apt_install
+      notify: restart tty
+
+    - name: retry installing software with updated cache
+      apt:
+        name: "{{ software }}"
+        state: present
+        update_cache: yes
+        install_recommends: no
+      when: apt_install is failed
+      notify: restart tty
+
+    - name: configured startx default for user
+      copy:
+        dest: "~{{ user }}/.bash_profile"
+        owner: "{{ user }}"
+        content: |
+          # automatically start display server upon autologin on tty1
+          if [[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]]; then
+            exec startx
+          fi
+      notify: restart tty
+
+    - name: fluxbox configuration directory exists
+      file:
+        state: directory
+        path: "~{{ user }}/.fluxbox"
+        owner: "{{ user }}"
+        group: "{{ user }}"
+
+    - name: fluxbox configuration applied
+      template:
+        src: "{{ item }}"
+        dest: "~{{ user }}/.fluxbox/{{ item | basename | regex_replace('\\.j2','') }}"
+        owner: "{{ user }}"
+        group: "{{ user }}"
+        backup: yes
+      with_fileglob:
+        - ../fluxbox/*.j2
+      notify: restart tty
+
+    - name: copied scripts
+      copy:
+        src: "{{ item }}"
+        dest: /usr/local/bin/
+        mode: 0755
+      with_fileglob:
+        - ../scripts/*.sh
+        - ../photobooth.sh
+      notify: restart tty
+
+    - name: inserted udev rule to start photobooth
+      copy:
+        dest: /etc/udev/rules.d/10-photobooth.rules
+        content: |
+          {% for item in camera_vendors -%}
+          SUBSYSTEM=="usb", DRIVERS=="usb", ACTION=="add", ATTRS{idVendor}=="{{ item }}", RUN+="/usr/local/bin/photobooth.sh"
+          {% endfor %}
+
+    - name: disabled gvfs monitors if installed
+      systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      with_items: "{{ gvfs_monitors }}"
+      ignore_errors: yes
+      tags: [ gvfs ]
