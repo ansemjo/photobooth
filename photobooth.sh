@@ -1,188 +1,191 @@
 #!/usr/bin/env bash
+set -e
 
-# switch to directory of script
-export THISSCRIPT=$(readlink -f "$0")
-export THISDIRECTORY=$(dirname "$THISSCRIPT")
-cd "$THISDIRECTORY"
-
-# ------ CONFIGURATION ------
-
-# user to be used. must be a logged in user to display feh correctly but can be a uid
-# uid 1000 is usually the first user
-export USER=1000
-
-# fix if feh doesn't display .. we probably need to use the first display
-export DISPLAY=:0
-
-# we depend on dropbox to upload pictures to the cloud™ in the background
-export PHOTOBOOTH=~/Dropbox/Fotobox
-
-# gphoto filename template
-export FILENAME_TEMPLATE='%Y%m%d-%H%M%S-%04n.%C'
-
-# startscreen and logging file
-export STARTSCREEN="start.png"
-export LOGFILE="log.txt"
-
-# picture delays
-export SLIDESHOW_DELAY=3
-export SNAPSHOT_DELAY=6
-
-# ------ HELPER FUNCTIONS ------
+# ------ LOGGING ------
 
 # log a message with a bolded timestamp in front, propagate to child shells
-log() { printf '\033[%sm[%s]\033[0m %s\n' "${2:-1}" "$(date --utc +%FT%T%Z)" "$1" | tee --append "$LOGFILE"; }
+log() { printf '\033[%sm%s\033[0m %s\n' "${2:-1}" "$(date --utc "+%F %T")" "$1"; }
 # log an error in bold red
 err() { log "$1" "1;31"; }
 # log an error and exit
 fatal() { err "$1"; exit 1; }
 # redirect output streams to logfile
-stdlog() { while read line; do log "$line" "1;34"; done }
-# find the newest subdirectory
-newest-dir() { find "$1" -mindepth 1 -maxdepth 1 -type d -exec ls -d1t {} \+ | head -1; }
+writelog() { while read line; do log "$line" "1;34"; done }
+
+# ------ FUNCTIONS ------
+
+# find the newest subdirectory somewhere or create one
+newestdir() {
+  dir=${1:?}; name=${2:-Fotobox}; cd "${dir}";
+  d=$(find "${dir}" -mindepth 1 -maxdepth 1 -type d -exec ls -d1t {} \+ | head -1)
+  if [[ -z $d ]]; then
+    d="${dir}/${name}_$(date --utc +%F_%H%M%S)"
+    mkdir -p "$d"
+  fi
+  echo "$d"
+}
 
 # ------ MAIN SCRIPT ------
+
+# check if we were called by a gphoto2 hook
+gphoto_calling() {
+  if [[ $THIS_IS_GPHOTO_CALLING != "yes" ]]; then
+    fatal "Not calling from gphoto2 hook!"
+  fi
+}
+
+# bootstrap photobooth and start thethering
+bootstrap() {
+  
+  # full path of this script
+  export THISSCRIPT=$(readlink -f "$0")
+
+  # source configuration files
+  for cfg in /etc/photobooth.conf ~/.config/photobooth.conf; do
+    if [[ -r $cfg ]]; then source "$cfg"; fi
+  done
+
+  # fallback to use the first display
+  export DISPLAY="${DISPLAY:-:0}"
+
+  # root folder to store albums under
+  STORAGE="${STORAGE:-$HOME/Photobooth}"
+  [[ -d $STORAGE ]] || fatal "Directory '$STORAGE' does not exist!"
+
+  # runtime directory for temporary files
+  export RUNTIME="${RUNTIME:-$XDG_RUNTIME_DIR}"
+  export RUNTIME="${RUNTIME:-/run/user/$EUID}/photobooth"
+  mkdir -p "$RUNTIME"
+
+  # startscreen and logging file
+  export STARTSCREEN="/usr/local/share/photobooth_start.png"
+  LOGFILE="/tmp/log.txt"
+
+  # picture delays
+  export SLIDESHOW_TIME=5
+  export NEWPHOTO_TIME=6
+
+  # choose subdirectory for photos
+  export DIRECTORY=$(newestdir "$STORAGE")
+  cd "$DIRECTORY"
+  
+  # start thethered capture
+  export THIS_IS_GPHOTO_CALLING=yes
+  gphoto2 2>/dev/null \
+    --capture-tethered \
+    --filename="$DIRECTORY/%Y%m%d-%H%M%S-%04n.%C" \
+    --hook-script="$THISSCRIPT" | cat
+
+  teardown;
+  log "EXIT"
+}
+
+# ------ PICTURE DISPLAY -------
+
+# start randomized slideshow in the background
+slideshow() {
+  feh --hide-pointer --fullscreen --zoom fill \
+    --slideshow-delay "$SLIDESHOW_TIME" \
+    --reload "$SLIDESHOW_TIME" \
+    --randomize \
+    "$DIRECTORY" &
+  printf "$!" > "$RUNTIME/slideshow.pid"
+  log "slideshow feh: $!"
+}
+
+# display a single photo for certain duration
+singlephoto() {
+  feh --hide-pointer --fullscreen --zoom fill \
+    "${1:?}" &
+  printf "$!" > "$RUNTIME/single.pid"
+  log "new feh: $!"
+}
+
+# kill a feh instance $1 = {single|slideshow}
+killfeh() {
+  pid=$(< "$RUNTIME/${1:?}.pid")
+  kill "$pid"
+}
+
+# ------ GPHOTO HOOKS ------
+
+hook_init() {
+
+  # log directory that is used
+  log "directory: $DIRECTORY"
+
+  # copy first frame if directory is empty
+  if [[ -z "$(ls -A "$DIRECTORY")" ]]; then
+    log "copy startup screen"
+    cp -f "$STARTSCREEN" "$DIRECTORY/"
+  fi
+
+  # start background slideshow
+  slideshow
+
+}
+
+hook_download() {
+
+  new=$1
+  log "new photo: $new"
+
+  # remove startscreen on first capture
+  startscreen="$DIRECTORY/$(basename "$STARTSCREEN")"
+  if [[ -f $startscreen ]]; then rm -f "$startscreen"; fi
+
+  # display new photo
+  singlephoto "$new"
+  
+  # kill slideshow after some delay
+  sleep 1
+  killfeh "slideshow"
+  
+  # start new slideshow after some delay
+  sleep "$NEWPHOTO_TIME";
+  slideshow;
+
+  # kill single photo view
+  sleep 1;
+  killfeh "single";
+
+}
+
+teardown() {
+
+  log "killing all remaining feh processes"
+  killall feh 2>/dev/null
+
+  log "remove pid files"
+  rm -f "$RUNTIME/*.pid" 2>/dev/null
+
+}
 
 case "$ACTION" in
 
   # udev hook when adding device
   add)
-
     # udev fires two add events .. silently exit on one
     [[ -n $DRIVER ]] && exit 0;
-    
-    log "new $ID_VENDOR_FROM_DATABASE camera attached"
-
-    # we are probably root here .. change to user
-    if [[ $EUID -eq 0 ]]; then
-
-      # if user given as uid, find appropriate username
-      [[ $USER =~ ^[0-9]+$ ]] && export USER=$(id -un $USER)
-
-      # change log ownership as long as we are root
-      chown "$USER" "$LOGFILE"
-
-      log "we are root. re-executing $THISSCRIPT as $USER"
-      exec su "$USER" "$THISSCRIPT"
-    fi
-
-    # does the photobooth root exist?
-    [[ -d $PHOTOBOOTH ]] || fatal "$PHOTOBOOTH does not exist!"
-
-    # find the newest subdirectory of photobooth folder
-    export DIRECTORY=$(newest-dir "$PHOTOBOOTH")
-
-    # error if there is none yet, i.e. $DIRECTORY is empty
-    [[ -n $DIRECTORY ]] || fatal "couldn't determine newest directory! is $PHOTOBOOTH empty?"
-
-    # so that hooks know they are running from gphoto
-    export THIS_IS_GPHOTO_CALLING=yes
-
-    # wait a moment
-    env | stdlog
-    sleep 1
-
-    # start tethering
-    gphoto2 \
-      --capture-tethered \
-      --filename="$DIRECTORY/$FILENAME_TEMPLATE" \
-      --hook-script="$THISSCRIPT" \
-      2>&1 1>/dev/null | stdlog
-
-    log "gphoto exited. bye!"
-
+    # bootstrap photobooth with small delay
+    log "new $ID_VENDOR_FROM_DATABASE camera attached";
+    sleep 1 && bootstrap;
   ;;
 
   # gphoto is initialising tethered capture
-	init)
-
-    # should be called by gphoto only
-    [[ $THIS_IS_GPHOTO_CALLING == "yes" ]] || fatal "not calling from gphoto hook!"
-
-		# log directory that is used
-		log "using $DIRECTORY"
-
-		# count files in directory
-		FILES=$(ls -1 "$DIRECTORY/" | wc -l)
-
-		# copy first frame if directory is empty
-		[[ $FILES -eq 0 ]] \
-			&& log "copy startscreen" \
-			&& cp -f "$STARTSCREEN" "$DIRECTORY/" \
-			|| true
-
-	;;
-
-  # gphoto is starting tethered capture
-	start)
-
-    # should be called by gphoto only
-    [[ $THIS_IS_GPHOTO_CALLING == "yes" ]] || fatal "not calling from gphoto hook!"
-
-		# start refreshing slideshow in the background
-		log "initialize background slideshow"
-		feh \
-			--hide-pointer \
-			--fullscreen \
-			--zoom fill \
-			--randomize \
-			--reload 2 \
-			--slideshow-delay $SLIDESHOW_DELAY \
-			"$DIRECTORY" &
-		
-		# save pid of background slideshow
-		PID=$!
-		log "background slideshow PID: $PID"
-		printf '%s' "$PID" > photobooth.pid
-
-	;;
+  init) gphoto_calling && hook_init ;;
+  start) : ;;
 
   # gphoto downloaded a picture
-	download)
-
-    # should be called by gphoto only
-    [[ $THIS_IS_GPHOTO_CALLING == "yes" ]] || fatal "not calling from gphoto hook!"
-
-    # remove startscreen on first capture
-    [[ -f $DIRECTORY/$STARTSCREEN ]] && rm "$DIRECTORY/$STARTSCREEN"
-		
-		# display new photo on top
-		log "display new photo: $ARGUMENT"
-		feh \
-			--hide-pointer \
-			--fullscreen \
-			--zoom fill \
-			--cycle-once \
-			--slideshow-delay $SNAPSHOT_DELAY.5 \
-			"$ARGUMENT" &
-
-    # direct background feh to change photo shortly before current photo closes again
-		( sleep $SNAPSHOT_DELAY;
-      if ! kill -s 0 "$(cat photobooth.pid)" 2>/dev/null; then
-        log "slideshow not reunning, restarting ..."
-        ACTION=start bash "$0" &
-      else
-        kill -USR1 "$(cat photobooth.pid)"
-      fi ) &
-
-	;;
+  download) gphoto_calling && hook_download "$ARGUMENT" ;;
 
   # gphoto is stopping tethering
-	stop)
+  stop) gphoto_calling && teardown ;;
 
-    # should be called by gphoto only
-    [[ $THIS_IS_GPHOTO_CALLING == "yes" ]] || fatal "not calling from gphoto hook!"
-
-		log "killing all remaining feh processes"
-		killall feh &
-
-		log "remove pid file"
-		rm photobooth.pid
-
-	;;
-
-  # error on unknown and empty actions
-  '') fatal "no action given in \$ACTION" ;;
-	*) fatal "unknown action: $ACTION" ;;
+  # no action, probably started from commandline
+  '') bootstrap ;;
+  
+  # log unknown actions
+  *) log "unknown action: $ACTION" ;;
 
 esac

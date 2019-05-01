@@ -8,7 +8,7 @@
 
     # start applications automatically
     fluxbox_autostart:
-      - xset s off # disable screen blank
+      - xset -dpms s off # disable screen blank
       - wicd-client -t & # start network config tray
       #- xterm -geometry 168x55+0+0 -maximized &
 
@@ -27,6 +27,7 @@
       # display manager
       - xserver-xorg
       - xinit
+      - x11-xserver-utils
       - xterm
       - fluxbox
       # network setup tools
@@ -65,6 +66,7 @@
       with_items:
         - "ansible_distribution == 'Debian'"
         - "ansible_distribution_major_version == '9'"
+      tags: [ check ]
 
     - name: reduce grub timeout
       lineinfile:
@@ -72,10 +74,12 @@
         regexp: '^GRUB_TIMEOUT='
         line: GRUB_TIMEOUT=1
       register: grub_defaults
+      tags: [ grub, conf ]
 
     - name: update grub configuration
       command: update-grub
       when: grub_defaults is changed
+      tags: [ grub, conf ]
 
     - name: user account created
       user:
@@ -84,11 +88,13 @@
         shell: /bin/bash
         state: present
       notify: restart tty
+      tags: [ conf ]
 
     - name: getty override directory exists
       file:
         state: directory
         path: /etc/systemd/system/getty@.service.d
+      tags: [ getty, conf ]
 
     - name: getty autologin override in place
       copy:
@@ -98,6 +104,7 @@
           ExecStart=
           ExecStart=-/sbin/agetty --autologin {{ user }} --noclear %I $TERM
       notify: restart tty
+      tags: [ getty, conf ]
 
     - name: required software is installed
       apt:
@@ -108,6 +115,7 @@
       ignore_errors: yes
       register: apt_install
       notify: restart tty
+      tags: [ software ]
 
     - name: retry installing software with updated cache
       apt:
@@ -117,6 +125,7 @@
         install_recommends: no
       when: apt_install is failed
       notify: restart tty
+      tags: [ software ]
 
     - name: configured startx default for user
       copy:
@@ -128,6 +137,7 @@
             exec startx
           fi
       notify: restart tty
+      tags: [ desktop, conf ]
 
     - name: fluxbox configuration directory exists
       file:
@@ -135,6 +145,7 @@
         path: "~{{ user }}/.fluxbox"
         owner: "{{ user }}"
         group: "{{ user }}"
+      tags: [ desktop, conf ]
 
     - name: fluxbox configuration applied
       template:
@@ -146,24 +157,27 @@
       with_fileglob:
         - ../fluxbox/*.j2
       notify: restart tty
+      tags: [ desktop, conf ]
 
-    - name: copied scripts
+    - name: copied photobooth files
       copy:
-        src: "{{ item }}"
-        dest: /usr/local/bin/
-        mode: 0755
-      with_fileglob:
-        - ../scripts/*.sh
-        - ../photobooth.sh
+        src: "{{ item.src }}"
+        dest: "/usr/local/{{ item.dest }}"
+        mode: "{{ item.mode | default(0644) }}"
+      with_items:
+        - { src: ../photobooth.sh, dest: bin/photobooth.sh, mode: "0755" }
+        - { src: ../start.png, dest: share/photobooth_start.png }
       notify: restart tty
+      tags: [ script ]
 
     - name: inserted udev rule to start photobooth
       copy:
         dest: /etc/udev/rules.d/10-photobooth.rules
         content: |
           {% for item in camera_vendors -%}
-          SUBSYSTEM=="usb", DRIVERS=="usb", ACTION=="add", ATTRS{idVendor}=="{{ item }}", RUN+="/usr/local/bin/photobooth.sh"
+          SUBSYSTEM=="usb", DRIVERS=="usb", ACTION=="add", ATTRS{idVendor}=="{{ item }}", RUN+="/bin/su {{ user }} -c /usr/local/bin/photobooth.sh"
           {% endfor %}
+      tags: [ udev, conf ]
 
     - name: disabled gvfs monitors if installed
       systemd:
@@ -172,4 +186,4 @@
         enabled: no
       with_items: "{{ gvfs_monitors }}"
       ignore_errors: yes
-      tags: [ gvfs ]
+      tags: [ gvfs, udev, conf ]
