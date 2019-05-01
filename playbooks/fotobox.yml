@@ -8,31 +8,34 @@
 
     # start applications automatically
     fluxbox_autostart:
+      - xset s off # disable screen blank
+      - wicd-client -t & # start network config tray
       #- xterm -geometry 168x55+0+0 -maximized &
-      - nm-applet &
 
     # add entries to right-click menu on desktop
     fluxbox_menu:
-      - { name: Terminal, cmd: xterm, img: /usr/share/pixmaps/filled-xterm_32x32.xpm }
-      - { name: File Explorer, cmd: thunar, img: /usr/share/pixmaps/Thunar/Thunar-about-logo.png }
-      - { name: Web Browser, cmd: firefox, img: /usr/share/pixmaps/debian-logo.png}
+      - { name: Terminal, cmd: x-terminal-emulator }
+      - { name: Network Config, cmd: wicd-client --no-tray }
+      - { name: File Explorer, cmd: thunar }
+      - { name: Web Browser, cmd: x-www-browser }
 
     # install required software
     software:
+      # curl is useful
       - ca-certificates
-      - network-manager
-      - network-manager-gnome
-      - net-tools
-      - wireless-tools
-      - wpagui
       - curl
+      # display manager
       - xserver-xorg
       - xinit
       - xterm
       - fluxbox
+      # network setup tools
+      - net-tools
+      - wireless-tools
+      - wicd
+      # required or useful desktop applications
       - gphoto2
       - feh
-      - qrencode
       - thunar
       - firefox-esr
 
