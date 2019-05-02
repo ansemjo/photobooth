@@ -10,11 +10,13 @@
     fluxbox_autostart:
       - xset -dpms s off # disable screen blank
       - wicd-client -t & # start network config tray
+      - unclutter -idle 5 -root &
       #- xterm -geometry 168x55+0+0 -maximized &
 
     # add entries to right-click menu on desktop
     fluxbox_menu:
       - { name: Terminal, cmd: x-terminal-emulator }
+      - { name: Photobooth, cmd: photobooth.sh }
       - { name: Network Config, cmd: wicd-client --no-tray }
       - { name: File Explorer, cmd: thunar }
       - { name: Web Browser, cmd: x-www-browser }
@@ -30,6 +32,7 @@
       - x11-xserver-utils
       - xterm
       - fluxbox
+      - unclutter
       # network setup tools
       - net-tools
       - wireless-tools
