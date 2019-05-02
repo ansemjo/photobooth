@@ -195,7 +195,14 @@ case "$ACTION" in
   stop) gphoto_calling && hook_stop ;;
 
   # no action, probably started from commandline
-  '') bootstrap ;;
+  '')
+    if pgrep gphoto2; then
+      log "kill running photobooth instance ..."
+      killall gphoto2
+      sleep 2
+    fi
+    bootstrap
+  ;;
   
   # log unknown actions
   *) log "unknown action: $ACTION" ;;
