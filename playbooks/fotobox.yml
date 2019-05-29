@@ -20,6 +20,8 @@
       - { name: Network Config, cmd: wicd-client --no-tray }
       - { name: File Explorer, cmd: thunar }
       - { name: Web Browser, cmd: x-www-browser }
+      - { name: Shutdown, cmd: sudo systemctl poweroff }
+      - { name: Reboot Machine, cmd: sudo systemctl reboot }
 
     # install required software
     software:
@@ -91,7 +93,18 @@
         shell: /bin/bash
         state: present
       notify: restart tty
-      tags: [ conf ]
+      tags: [ conf, user ]
+
+    - name: allow user to run sudo commands
+      copy:
+        dest: /etc/sudoers.d/fotobox
+        content: "{{ user }} ALL=(ALL) NOPASSWD: ALL"
+        validate: visudo -cf %s
+        mode: 0440
+        user: root
+        group: root
+      notify: restart tty
+      tags: [ conf, user ]
 
     - name: getty override directory exists
       file:
