@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Photobooth
+Comment=
+Exec=sh -c "%%BINPATH%% --directory %%DIRECTORY%%"
+Icon=camera-photo
+Path=
+Terminal=true
+StartupNotify=false
