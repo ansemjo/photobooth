@@ -1,7 +1,0 @@
-[begin] (fluxbox)
-{% for item in fluxbox_menu %}
-[exec] ({{ item.name }}) {{ "{" + item.cmd + "}" }}
-{% endfor %}
-[separator]
-[include] (/etc/X11/fluxbox/fluxbox-menu)
-[end]
