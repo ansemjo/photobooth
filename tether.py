@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+from signal import signal, SIGTERM, SIGINT
 from time import sleep
 from os.path import join
+from sys import exit
 from argparse import ArgumentParser
-from threading import Thread
+from threading import Thread, Event
 from queue import SimpleQueue, Empty
 from datetime import datetime
 from subprocess import Popen, DEVNULL
@@ -30,22 +32,28 @@ class filename:
     return f"{datetime.now():%Y-%m-%dT%H%M%S}_{self.name}_{ctr:04d}.{ext}"
 
 
-# a restarting background slideshow with feh
-def slideshow(directory, delay = 5):
+# a random background slideshow with feh
+def slideshow(quit, directory, delay = 5):
   
   while True:
-    s = feh(["--slideshow-delay", str(delay), "--reload", str(delay), "--randomize", directory])
-    s.wait()
-    sleep(1)
+    # start process
+    proc = feh(["--slideshow-delay", str(delay), "--reload", str(delay), "--randomize", directory])
+    
+    # poll and wait for quit event
+    while proc.poll() is None:
+      if quit.is_set():
+        proc.kill()
+        return
+      sleep(5)
 
 
 # background worker to display queued pictures on top
-def worker(queue, delay = 3, overlap = 0.5):
+def worker(quit, queue, delay = 3, overlap = 0.5):
   
   # structs to hold feh process references
   last, next = None, None
   
-  while True:
+  while not quit.is_set():
     try:
 
       # wait for new pictures
@@ -62,15 +70,18 @@ def worker(queue, delay = 3, overlap = 0.5):
     except Empty:
       # no picture in queue
       if last: last = last.kill()
+  
+  # tidy up before quitting
+  if last: last = last.kill()
 
 
 # main tethering loop
-def tethering(queue, directory, name, camera = None):
+def tethering(quit, queue, directory, name, camera = None):
 
   # initialize filename counter
   fn = filename(name)
 
-  while True:
+  while not quit.is_set():
     try:
 
       # initialize camera
@@ -94,23 +105,28 @@ def tethering(queue, directory, name, camera = None):
 
     except GPhoto2Error:
       # attempt to reinitalize camera on errors
-      if camera:
-        camera.exit()
-        camera = None
-      sleep(1)
+      if camera: camera = camera.exit()
+      sleep(2)
 
+  # tidy up before quitting
+  if camera: camera = camera.exit()
 
 
 # initialize an empty queue
 queue = SimpleQueue()
+event = Event()
 
-# create threads
-threads = [
-  Thread(target=slideshow, args=[args.directory, args.slide_delay]), # background slideshow
-  Thread(target=tethering, args=[queue, args.directory, args.name]), # tethering loop
-  Thread(target=worker, args=[queue, args.popup_delay]), # popup worker
-]
+# create and start threads
+for t in [
+  Thread(target=slideshow, args=[event, args.directory, args.slide_delay]), # background slideshow
+  Thread(target=tethering, args=[event, queue, args.directory, args.name]), # tethering loop
+  Thread(target=worker, args=[event, queue, args.popup_delay]), # popup worker
+]: t.start()
 
-# start threads and wait forever
-for t in threads: t.start()
-for t in threads: t.join()
+# signal handler to quit cleanly
+def quit(sig, frame):
+  print("\rquitting ...")
+  signal(sig, lambda s, f: exit(9))
+  event.set()
+signal(SIGINT, quit)
+signal(SIGTERM, quit)
