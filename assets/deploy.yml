@@ -1,0 +1,65 @@
+---
+
+- hosts: all
+  vars:
+
+    # software packages to be installed
+    required_software:
+      - feh
+      - gphoto2
+      - python3-gphoto2
+      - xterm
+
+    # disable these monitors because they interfere with our script
+    gvfs_monitors:
+      - gvfs-gphoto2-volume-monitor
+      - gvfs-mtp-volume-monitor
+      - gvfs-udisks2-volume-monitor
+
+  tasks:
+
+    - name: running an expected linux distribution
+      assert:
+        that: ansible_distribution == 'Debian'
+      tags: [ check ]
+
+
+    - name: required software is installed
+      become: yes
+      package:
+        name: "{{ required_software }}"
+        state: present
+        update_cache: yes
+        install_recommends: no
+      tags: [ software ]
+
+
+    - name: copied photobooth files
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: "{{ item.mode | default(0644) }}"
+      tags: [ script ]
+      with_items:
+
+        - src: photobooth
+          dest: .local/bin/photobooth
+          mode: "0755"
+      
+        - src: assets/photobooth.desktop
+          dest: .local/share/applications/photobooth.desktop
+          mode: "0755"
+
+        - src: assets/photobooth.desktop
+          dest: Desktop/photobooth.desktop
+          mode: "0755"
+      
+
+    - name: gvfs monitors disabled
+      systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      with_items: "{{ gvfs_monitors }}"
+      ignore_errors: yes
+      tags: [ gvfs ]
